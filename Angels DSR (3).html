@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Digital DSR</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0.6rem;
+      background: #fff;
+      font-size: 12.5px;
+      color: #333;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      table-layout: fixed;
+      font-size: 11px;
+    }
+
+    th, td {
+      padding: 5px;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+      word-wrap: break-word;
+    }
+
+    th {
+      background: #f7b26d;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      max-width: 45px;
+      text-align: center;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 11px;
+    }
+
+    tfoot td, .subtotal-row td {
+      font-weight: bold;
+      font-size: 12px;
+      background: #fffbe6;
+      color: #d32f2f;
+      text-align: right;
+    }
+
+    .subtotal-row td:last-child {
+      text-align: center;
+    }
+
+    button {
+      margin-top: 1rem;
+      background: #d32f2f;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      font-size: 13px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        font-size: 11px;
+      }
+
+      th, td {
+        padding: 3px;
+        font-size: 10px;
+      }
+
+      input[type="text"], input[type="number"] {
+        font-size: 10px;
+        max-width: 40px;
+      }
+
+      table {
+        font-size: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Start</th>
+        <th>Deliver</th>
+        <th>Waste</th>
+        <th>End</th>
+        <th>Sold</th>
+        <th>Price</th>
+        <th>Sales</th>
+      </tr>
+    </thead>
+    <tbody id="dsr-body"></tbody>
+    <tbody>
+      <tr class="subtotal-row">
+        <td colspan="7">SUBTOTAL FOR AB PRODUCTS:</td>
+        <td id="subtotal-ab">₱0</td>
+      </tr>
+    </tbody>
+    <tbody id="pepsi-body"></tbody>
+    <tfoot>
+      <tr class="subtotal-row">
+        <td colspan="7">SUBTOTAL FOR PEPSI PRODUCTS:</td>
+        <td id="subtotal-pepsi">₱0</td>
+      </tr>
+      <tr>
+        <td colspan="7">TOTAL SALES</td>
+        <td id="total-sales">₱0</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <button onclick="clearAll()">🧹 Clear All</button>
+
+  <script>
+    const abProducts = [
+      { code: "Buns", price: 5 }, { code: "HD Buns", price: 5 }, { code: "FL Buns", price: 12 },
+      { code: "Patty", price: 15 }, { code: "FL Dog", price: 44 }, 
+      { code: "HGC", price: 65 }, { code: "Chori", price: 22.5 }, { code: "Cheese", price: 5 },
+      { code: "Bacon", price: 25 }, { code: "CHD", price: 13.5 }, { code: "Egg", price: 15 },
+      { code: "Mineral", price: 16 }, { code: "Red Tea", price: 35 }
+    ];
+
+    const pepsiProducts = [
+      { code: "M. Dew", price: 25 }, { code: "Pepsi", price: 25 }, { code: "7Up", price: 25 },
+      { code: "Mirinda", price: 25 }, { code: "Sting", price: 25 }, { code: "Tropicana", price: 25 },
+      { code: "Rootbeer", price: 25 }, { code: "Gatorade", price: 25 }
+    ];
+
+    function renderSection(products, sectionId, sectionType) {
+      const tbody = document.getElementById(sectionId);
+      products.forEach((product, index) => {
+        const globalIndex = `${sectionType}-${index}`;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${product.code}</td>
+          <td><input type="text" id="start-${globalIndex}" placeholder="0"></td>
+          <td><input type="text" id="deliver-${globalIndex}" placeholder="0"></td>
+          <td><input type="text" id="waste-${globalIndex}" placeholder="0"></td>
+          <td><input type="text" id="end-${globalIndex}" placeholder="0"></td>
+          <td id="sold-${globalIndex}">0</td>
+          <td><input type="number" value="${product.price}" id="price-${globalIndex}" readonly></td>
+          <td id="sales-${globalIndex}">₱0</td>
+        `;
+        tbody.appendChild(row);
+
+        ['start', 'deliver', 'waste', 'end'].forEach(field => {
+          const inputId = `${field}-${globalIndex}`;
+          const input = document.getElementById(inputId);
+          input.value = localStorage.getItem(inputId) || '';
+          input.addEventListener('input', () => {
+            localStorage.setItem(inputId, input.value);
+            updateRow(globalIndex, sectionType);
+          });
+        });
+      });
+    }
+
+    function updateRow(index, type) {
+      const get = id => parseInt(document.getElementById(id).value) || 0;
+      const price = parseFloat(document.getElementById(`price-${index}`).value) || 0;
+      const sold = (get(`start-${index}`) + get(`deliver-${index}`)) - (get(`waste-${index}`) + get(`end-${index}`));
+      const sales = sold * price;
+      document.getElementById(`sold-${index}`).innerText = sold >= 0 ? sold : 0;
+      document.getElementById(`sales-${index}`).innerText = `₱${sales >= 0 ? sales : 0}`;
+      updateTotals();
+    }
+
+    function updateTotals() {
+      let abTotal = 0;
+      abProducts.forEach((_, index) => {
+        const sales = parseFloat(document.getElementById(`sales-ab-${index}`)?.innerText.replace('₱','')) || 0;
+        abTotal += sales;
+      });
+
+      let pepsiTotal = 0;
+      pepsiProducts.forEach((_, index) => {
+        const sales = parseFloat(document.getElementById(`sales-pepsi-${index}`)?.innerText.replace('₱','')) || 0;
+        pepsiTotal += sales;
+      });
+
+      document.getElementById('subtotal-ab').innerText = `₱${abTotal}`;
+      document.getElementById('subtotal-pepsi').innerText = `₱${pepsiTotal}`;
+      document.getElementById('total-sales').innerText = `₱${abTotal + pepsiTotal}`;
+    }
+
+    function clearAll() {
+      const confirmClear = confirm("Are you sure you want to clear all inputs? This cannot be undone.");
+      if (!confirmClear) return;
+
+      const inputs = document.querySelectorAll('input[type="text"]');
+      inputs.forEach(input => {
+        input.value = '';
+        localStorage.removeItem(input.id);
+      });
+
+      document.querySelectorAll('[id^="sold-"]').forEach(el => el.innerText = '0');
+      document.querySelectorAll('[id^="sales-"]').forEach(el => el.innerText = '₱0');
+
+      document.getElementById('subtotal-ab').innerText = '₱0';
+      document.getElementById('subtotal-pepsi').innerText = '₱0';
+      document.getElementById('total-sales').innerText = '₱0';
+    }
+
+    window.onload = () => {
+      renderSection(abProducts, 'dsr-body', 'ab');
+      renderSection(pepsiProducts, 'pepsi-body', 'pepsi');
+      setTimeout(updateTotals, 0);
+    };
+  </script>
+</body>
+</html>
